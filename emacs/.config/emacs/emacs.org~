@@ -1,0 +1,467 @@
+#+title: Emacs From Scratch Configuration
+#+PROPERTY: header-args:emacs-lisp :tangle ./init.el :mkdirp yes
+
+* Welcome!
+
+This is the configuration we've been building in the *Emacs From Scratch* series, now written as an Org Mode document.  This file generates [[file:init.el][init.el]] which can be loaded by Emacs at startup.
+
+*NOTE:* If you run into any issues while using this configuration, please [[https://github.com/daviwil/emacs-from-scratch/issues/new][file an issue]] or send me an email at =david at systemcrafters.cc=.
+
+The following variables are used to tweak some of the configuration pieces for use in the live streams so you might need to adjust them for your local machine if you try to use this configuration directly.
+
+#+begin_src emacs-lisp
+
+  ;; NOTE: init.el is now generated from Emacs.org.  Please edit that file
+  ;;       in Emacs and init.el will be generated automatically!
+
+  ;; You will most likely need to adjust this font size for your system!
+  (defvar efs/default-font-size 180)
+  (defvar efs/default-variable-font-size 180)
+
+  ;; Make frame transparency overridable
+  (defvar efs/frame-transparency '(90 . 90))
+
+#+end_src
+
+* Tips for Use
+
+In this document I've added links in many places that lead you to documentation for the various packages we use.  If you're looking at this file in Emacs, you can put your cursor on a link and press =C-c C-o= or run =M-x org-open-at-point= to open the link in your web browser.
+
+* Startup Performance
+
+#+begin_src emacs-lisp
+
+  ;; The default is 800 kilobytes.  Measured in bytes.
+  (setq gc-cons-threshold (* 50 1000 1000))
+
+  (defun efs/display-startup-time ()
+    (message "Emacs loaded in %s with %d garbage collections."
+             (format "%.2f seconds"
+                     (float-time
+                       (time-subtract after-init-time before-init-time)))
+             gcs-done))
+
+  (add-hook 'emacs-startup-hook #'efs/display-startup-time)
+
+#+end_src
+
+* Package System Setup
+
+Emacs has a built in package manager but it doesn't make it easy to automatically install packages on a new system the first time you pull down your configuration.  [[https://github.com/jwiegley/use-package][use-package]] is a really helpful package used in this configuration to make it a lot easier to automate the installation and configuration of everything else we use.
+
+#+begin_src emacs-lisp
+
+  ;; Initialize package sources
+  (require 'package)
+
+  (setq package-archives '(("melpa" . "https://melpa.org/packages/")
+                           ("org" . "https://orgmode.org/elpa/")
+                           ("elpa" . "https://elpa.gnu.org/packages/")))
+
+  (package-initialize)
+  (unless package-archive-contents
+    (package-refresh-contents))
+
+    ;; Initialize use-package on non-Linux platforms
+  (unless (package-installed-p 'use-package)
+    (package-install 'use-package))
+
+  (require 'use-package)
+  (setq use-package-always-ensure t)
+
+#+end_src
+
+** Automatic Package Updates
+
+The auto-package-update package helps us keep our Emacs packages up to date!  It will prompt you after a certain number of days either at startup or at a specific time of day to remind you to update your packages.
+
+You can also use =M-x auto-package-update-now= to update right now!
+
+#+begin_src emacs-lisp
+
+  (use-package auto-package-update
+    :custom
+    (auto-package-update-interval 7)
+    (auto-package-update-prompt-before-update t)
+    (auto-package-update-hide-results t)
+    :config
+    (auto-package-update-maybe)
+    (auto-package-update-at-time "09:00"))
+
+#+end_src
+
+* Keep Folders Clean
+
+We use the [[https://github.com/emacscollective/no-littering/blob/master/no-littering.el][no-littering]] package to keep folders where we edit files and the Emacs configuration folder clean!  It knows about a wide variety of variables for built in Emacs features as well as those from community packages so it can be much easier than finding and setting these variables yourself.
+
+#+begin_src emacs-lisp
+
+  ;; NOTE: If you want to move everything out of the ~/.emacs.d folder
+  ;; reliably, set `user-emacs-directory` before loading no-littering!
+  ;(setq user-emacs-directory "~/.cache/emacs")
+
+  (use-package no-littering)
+
+  ;; no-littering doesn't set this by default so we must place
+  ;; auto save files in the same path as it uses for sessions
+  (setq auto-save-file-name-transforms
+        `((".*" ,(no-littering-expand-var-file-name "auto-save/") t)))
+
+#+end_src
+
+* Basic UI Configuration
+
+This section configures basic UI settings that remove unneeded elements to make Emacs look a lot more minimal and modern.  If you're just getting started in Emacs, the menu bar might be helpful so you can remove the =(menu-bar-mode -1)= line if you'd like to still see that.
+
+#+begin_src emacs-lisp
+
+  (setq inhibit-startup-message t)
+
+  (scroll-bar-mode -1)        ; Disable visible scrollbar
+  (tool-bar-mode -1)          ; Disable the toolbar
+  (tooltip-mode -1)           ; Disable tooltips
+  (set-fringe-mode 10)        ; Give some breathing room
+
+  (menu-bar-mode -1)            ; Disable the menu bar
+
+  ;; Set up the visible bell
+  (setq visible-bell t)
+
+  (column-number-mode)
+  (global-display-line-numbers-mode t)
+
+  ;; Set frame transparency
+  (set-frame-parameter (selected-frame) 'alpha efs/frame-transparency)
+  (add-to-list 'default-frame-alist `(alpha . ,efs/frame-transparency))
+  (set-frame-parameter (selected-frame) 'fullscreen 'maximized)
+  (add-to-list 'default-frame-alist '(fullscreen . maximized))
+
+  ;; Disable line numbers for some modes
+  (dolist (mode '(org-mode-hook
+                  term-mode-hook
+                  shell-mode-hook
+                  treemacs-mode-hook
+                  eshell-mode-hook))
+    (add-hook mode (lambda () (display-line-numbers-mode 0))))
+
+#+end_src
+* Keybinding Configuration
+
+This configuration uses [[https://evil.readthedocs.io/en/latest/index.html][evil-mode]] for a Vi-like modal editing experience.  [[https://github.com/noctuid/general.el][general.el]] is used for easy keybinding configuration that integrates well with which-key.  [[https://github.com/emacs-evil/evil-collection][evil-collection]] is used to automatically configure various Emacs modes with Vi-like keybindings for evil-mode.
+
+#+begin_src emacs-lisp
+
+  ;; Make ESC quit prompts
+  (global-set-key (kbd "<escape>") 'keyboard-escape-quit)
+
+  (use-package general
+    :after evil
+    :config
+    (general-create-definer efs/leader-keys
+      :keymaps '(normal insert visual emacs)
+      :prefix "SPC"
+      :global-prefix "C-SPC")
+
+    (efs/leader-keys
+      "t"  '(:ignore t :which-key "toggles")
+      "tt" '(counsel-load-theme :which-key "choose theme")
+      "b" '(:ignore b :which-key "buffers")
+      "bb" 'counsel-switch-buffer
+      "f" '(:ignore f :which-key "files")
+      "ff" 'find-file
+      "fde" '(lambda () (interactive) (find-file (expand-file-name "~/.config/emacs/emacs.org")))))
+
+  (use-package evil
+    :init
+    (setq evil-want-integration t)
+    (setq evil-want-keybinding nil)
+    (setq evil-want-C-u-scroll t)
+    (setq evil-want-C-i-jump nil)
+    :config
+    (evil-mode 1)
+    (evil-set-undo-system 'undo-tree)
+    (define-key evil-insert-state-map (kbd "C-g") 'evil-normal-state)
+    (define-key evil-insert-state-map (kbd "C-h") 'evil-delete-backward-char-and-join)
+
+    ;; Use visual line motions even outside of visual-line-mode buffers
+    (evil-global-set-key 'motion "j" 'evil-next-visual-line)
+    (evil-global-set-key 'motion "k" 'evil-previous-visual-line)
+
+    (evil-set-initial-state 'messages-buffer-mode 'normal)
+    (evil-set-initial-state 'dashboard-mode 'normal))
+
+  (use-package evil-collection
+    :after evil
+    :config
+    (evil-collection-init))
+
+  (use-package undo-tree
+    :ensure t
+    :init (global-undo-tree-mode))
+#+end_src
+
+* UI Configuration
+** Which Key
+
+[[https://github.com/justbur/emacs-which-key][which-key]] is a useful UI panel that appears when you start pressing any key binding in Emacs to offer you all possible completions for the prefix.  For example, if you press =C-c= (hold control and press the letter =c=), a panel will appear at the bottom of the frame displaying all of the bindings under that prefix and which command they run.  This is very useful for learning the possible key bindings in the mode of your current buffer.
+
+#+begin_src emacs-lisp
+
+  (use-package which-key
+    :defer 0
+    :diminish which-key-mode
+    :config
+    (which-key-mode)
+    (setq which-key-idle-delay 1))
+
+#+end_src
+
+** Ivy and Counsel
+
+[[https://oremacs.com/swiper/][Ivy]] is an excellent completion framework for Emacs.  It provides a minimal yet powerful selection menu that appears when you open files, switch buffers, and for many other tasks in Emacs.  Counsel is a customized set of commands to replace `find-file` with `counsel-find-file`, etc which provide useful commands for each of the default completion commands.
+
+[[https://github.com/Yevgnen/ivy-rich][ivy-rich]] adds extra columns to a few of the Counsel commands to provide more information about each item.
+
+#+begin_src emacs-lisp
+
+  (use-package ivy
+    :diminish
+    :bind (("C-s" . swiper)
+           :map ivy-minibuffer-map
+           ("TAB" . ivy-alt-done)
+           ("C-l" . ivy-alt-done)
+           ("C-j" . ivy-next-line)
+           ("C-k" . ivy-previous-line)
+           :map ivy-switch-buffer-map
+           ("C-k" . ivy-previous-line)
+           ("C-l" . ivy-done)
+           ("C-d" . ivy-switch-buffer-kill)
+           :map ivy-reverse-i-search-map
+           ("C-k" . ivy-previous-line)
+           ("C-d" . ivy-reverse-i-search-kill))
+    :config
+    (ivy-mode 1))
+
+  (use-package ivy-rich
+    :after ivy
+    :init
+    (ivy-rich-mode 1))
+(use-package ivy-posframe
+  :ensure t
+  :after ivy
+  :config
+  ;; Display Ivy completions in a posframe
+  (setq ivy-posframe-display-functions-alist
+        '((t . ivy-posframe-display)))
+
+  ;; Optional: Customize posframe appearance
+  (setq ivy-posframe-parameters '((left . 10)  ;; Horizontal position
+                                  (top . 10)   ;; Vertical position
+                                  (width . 40) ;; Width of the frame
+                                  (height . 10) ;; Height of the frame
+                                  (internal-border-width . 10))) ;; Border width
+  
+  ;; Make Ivy use posframe for display
+  (ivy-posframe-mode 1))
+
+(use-package counsel
+  :ensure t
+  :bind (("C-s" . counsel-grep-or-swiper)  ;; Use swiper for search
+         ("M-x" . counsel-M-x)           ;; Use Counsel M-x
+         ("C-x C-f" . counsel-find-file))) ;; Use Counsel find file
+
+#+end_src
+
+*** Improved Candidate Sorting with prescient.el
+
+prescient.el provides some helpful behavior for sorting Ivy completion candidates based on how recently or frequently you select them.  This can be especially helpful when using =M-x= to run commands that you don't have bound to a key but still need to access occasionally.
+
+This Prescient configuration is optimized for use in System Crafters videos and streams, check out the [[https://youtu.be/T9kygXveEz0][video on prescient.el]] for more details on how to configure it!
+
+#+begin_src emacs-lisp
+
+  (use-package ivy-prescient
+    :after counsel
+    :custom
+    (ivy-prescient-enable-filtering nil)
+    :config
+    ;; Uncomment the following line to have sorting remembered across sessions!
+    ;(prescient-persist-mode 1)
+    (ivy-prescient-mode 1))
+
+#+end_src
+
+** modeline and Icons
+#+begin_src emacs-lisp
+  (use-package nerd-icons
+  :ensure t
+  )
+  (use-package doom-modeline
+  :ensure t
+  :init (doom-modeline-mode 1))
+#+end_src
+** Dashboard
+#+begin_src emacs-lisp
+      (use-package dashboard
+        :ensure t
+        :config
+        (dashboard-setup-startup-hook))
+    (setq dashboard-items '((recents   . 5)
+                            (bookmarks . 5)
+                            (projects  . 5)
+                            (agenda    . 5)
+                            (registers . 5)))
+    (setq dashboard-display-icons-p t)     ; display icons on both GUI and terminal
+  (setq dashboard-icon-type 'nerd-icons) ; use `nerd-icons' package
+  (add-to-list 'dashboard-items '(agenda) t)
+(setq dashboard-week-agenda t)
+#+end_src
+* Development
+** LSP
+#+begin_src emacs-lisp
+	(use-package eglot
+      :ensure t
+	:hook ((prog-mode . eglot-ensure))
+      :config
+      (setq eglot-server-programs
+	    '((python-mode . ("pyright"))
+	      (js-mode . ("typescript-language-server" "--stdio"))
+	      ;; Add more language servers here as needed
+	      )))
+    (use-package company
+      :ensure t
+      :hook (prog-mode . company-mode)  ;; Enable company mode in programming modes
+  :bind (:map company-active-map
+	     ("<tab>" . company-complete-selection))
+      :custom
+      (company-minimum-prefix-length 1)
+      (company-idle-delay 0.0)
+      :config
+      (setq company-idle-delay 0.2    ;; Delay before completion menu pops up
+	    company-minimum-prefix-length 1  ;; Trigger completions after 1 char
+	    company-selection-wrap-around t  ;; Wrap around completion list
+	    company-tooltip-limit 20))  ;; Max number of suggestions in tooltip
+
+    (global-company-mode 1)
+  #+end_src
+** Projectile
+
+[[https://projectile.mx/][Projectile]] is a project management library for Emacs which makes it a lot easier to navigate around code projects for various languages.  Many packages integrate with Projectile so it's a good idea to have it installed even if you don't use its commands directly.
+
+#+begin_src emacs-lisp
+
+  (use-package projectile
+    :diminish projectile-mode
+    :config (projectile-mode)
+    :custom ((projectile-completion-system 'ivy))
+    :bind-keymap
+    ("C-c p" . projectile-command-map)
+    :init
+    ;; NOTE: Set this to the folder where you keep your Git repos!
+    (when (file-directory-p "~/Projects/Code")
+      (setq projectile-project-search-path '("~/Projects/Code")))
+    (setq projectile-switch-project-action #'projectile-dired))
+
+  (use-package counsel-projectile
+    :after projectile
+    :config (counsel-projectile-mode))
+
+#+end_src
+
+** Magit
+
+[[https://magit.vc/][Magit]] is the best Git interface I've ever used.  Common Git operations are easy to execute quickly using Magit's command panel system.
+
+#+begin_src emacs-lisp
+
+  (use-package magit
+    :commands magit-status
+    :custom
+    (magit-display-buffer-function #'magit-display-buffer-same-window-except-diff-v1))
+
+  ;; NOTE: Make sure to configure a GitHub token before using this package!
+  ;; - https://magit.vc/manual/forge/Token-Creation.html#Token-Creation
+  ;; - https://magit.vc/manual/ghub/Getting-Started.html#Getting-Started
+  (use-package forge
+    :after magit)
+
+#+end_src
+
+** Commenting
+
+Emacs' built in commenting functionality =comment-dwim= (usually bound to =M-;=) doesn't always comment things in the way you might expect so we use [[https://github.com/redguardtoo/evil-nerd-commenter][evil-nerd-commenter]] to provide a more familiar behavior.  I've bound it to =M-/= since other editors sometimes use this binding but you could also replace Emacs' =M-;= binding with this command.
+
+#+begin_src emacs-lisp
+
+  (use-package evil-nerd-commenter
+    :bind ("M-/" . evilnc-comment-or-uncomment-lines))
+
+#+end_src
+
+** Rainbow Delimiters
+
+[[https://github.com/Fanael/rainbow-delimiters][rainbow-delimiters]] is useful in programming modes because it colorizes nested parentheses and brackets according to their nesting depth.  This makes it a lot easier to visually match parentheses in Emacs Lisp code without having to count them yourself.
+
+#+begin_src emacs-lisp
+
+(use-package rainbow-delimiters
+  :hook (prog-mode . rainbow-delimiters-mode))
+
+#+end_src
+
+* Org-mode
+** Basic settings
+#+begin_src emacs-lisp
+  ;; When a TODO is set to a done state, record a timestamp
+(setq org-log-done 'time)
+
+;; Follow the links
+(setq org-return-follows-link  t)
+
+;; Associate all org files with org mode
+(add-to-list 'auto-mode-alist '("\\.org\\'" . org-mode))
+(setq org-agenda-files '("~/org"))
+;; Make the indentation look nicer
+(add-hook 'org-mode-hook 'org-indent-mode)
+;; Hide the markers so you just see bold text as BOLD-TEXT and not *BOLD-TEXT*
+(setq org-hide-emphasis-markers t)
+
+;; Wrap the lines in org mode so that things are easier to read
+(add-hook 'org-mode-hook 'visual-line-mode)
+#+end_src
+** Agenda setup
+#+begin_src emacs-lisp
+      ;; TODO colors
+(setq org-todo-keywords
+      '((sequence "TODO(t)" "PLANNING(p)" "IN-PROGRESS(i@/!)" "VERIFYING(v!)" "BLOCKED(b@)"  "|" "DONE(d!)" "OBE(o@!)" "WONT-DO(w@/!)" )
+        ))
+      (setq org-todo-keyword-faces
+	    '(
+	      ("TODO" . (:foreground "GoldenRod" :weight bold))
+	      ("PLANNING" . (:foreground "DeepPink" :weight bold))
+	      ("IN-PROGRESS" . (:foreground "Cyan" :weight bold))
+	      ("VERIFYING" . (:foreground "DarkOrange" :weight bold))
+	      ("BLOCKED" . (:foreground "Red" :weight bold))
+	      ("DONE" . (:foreground "LimeGreen" :weight bold))
+	      ("OBE" . (:foreground "LimeGreen" :weight bold))
+	      ("WONT-DO" . (:foreground "LimeGreen" :weight bold))
+	      ))
+    (setq org-capture-templates
+	  '(    
+	    ("c" "Code To-Do"
+	     entry (file+headline "~/org/todos.org" "Code Related Tasks")
+	     "* TODO [#B] %?\n:Created: %T\n%i\n%a\nProposed Solution: "
+	     :empty-lines 0)
+      ("m" "Meeting"
+	   entry (file+datetree "~/org/meetings.org")
+	   "* %? :meeting:%^g \n:Created: %T\n** Attendees\n*** \n** Notes\n** Action Items\n*** TODO [#A] "
+	   :tree-type week
+	   :clock-in t
+	   :clock-resume t
+	   :empty-lines 0)
+  ("g" "General To-Do"
+	   entry (file+headline "~/org/todos.org" "General Tasks")
+	   "* TODO [#B] %?\n:Created: %T\n "
+	   :empty-lines 0)
+	    ))
+#+end_src
