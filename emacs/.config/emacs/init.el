@@ -105,7 +105,15 @@
     "bb" 'counsel-switch-buffer
     "f" '(:ignore f :which-key "files")
     "ff" 'find-file
-    "fde" '(lambda () (interactive) (find-file (expand-file-name "~/.config/emacs/emacs.org")))))
+    "fde" '(lambda () (interactive) (find-file (expand-file-name "~/.config/emacs/emacs.org")))
+    "g" '(:ignore g :which-key "git")
+    "gs" 'magit-status
+    "o" '(:ignore o :which-key "orgmode")
+    "obt" 'org-babel-tangle
+    "oc" 'org-capture
+    "os" 'org-schedule
+    "oa" 'org-agenda
+    ))
 
 (use-package evil
   :init
