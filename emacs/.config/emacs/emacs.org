@@ -254,29 +254,29 @@ This configuration uses [[https://evil.readthedocs.io/en/latest/index.html][evil
     :after ivy
     :init
     (ivy-rich-mode 1))
-(use-package ivy-posframe
-  :ensure t
-  :after ivy
-  :config
-  ;; Display Ivy completions in a posframe
-  (setq ivy-posframe-display-functions-alist
-        '((t . ivy-posframe-display)))
+  (use-package ivy-posframe
+    :ensure t
+    :after ivy
+    :config
+    ;; Display Ivy completions in a posframe
+    (setq ivy-posframe-display-functions-alist
+          '((t . ivy-posframe-display)))
 
-  ;; Optional: Customize posframe appearance
-  (setq ivy-posframe-parameters '((left . 10)  ;; Horizontal position
-                                  (top . 10)   ;; Vertical position
-                                  (width . 40) ;; Width of the frame
-                                  (height . 10) ;; Height of the frame
-                                  (internal-border-width . 10))) ;; Border width
+    ;; Optional: Customize posframe appearance
+    (setq ivy-posframe-parameters '((left . 10)  ;; Horizontal position
+                                    (top . 10)   ;; Vertical position
+                                    (width . 40) ;; Width of the frame
+                                    (height . 10) ;; Height of the frame
+                                    (internal-border-width . 10))) ;; Border width
   
-  ;; Make Ivy use posframe for display
-  (ivy-posframe-mode 1))
+    ;; Make Ivy use posframe for display
+    (ivy-posframe-mode 1))
 
-(use-package counsel
-  :ensure t
-  :bind (("C-s" . counsel-grep-or-swiper)  ;; Use swiper for search
-         ("M-x" . counsel-M-x)           ;; Use Counsel M-x
-         ("C-x C-f" . counsel-find-file))) ;; Use Counsel find file
+  (use-package counsel
+    :ensure t
+    :bind (("C-s" . counsel-grep-or-swiper)  ;; Use swiper for search
+           ("M-x" . counsel-M-x)           ;; Use Counsel M-x
+           ("C-x C-f" . counsel-find-file))) ;; Use Counsel find file
 
 #+end_src
 
